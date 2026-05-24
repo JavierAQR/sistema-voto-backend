@@ -87,7 +87,7 @@ def generar_embedding_desde_url(foto_url: str):
         return resultado[0]["embedding"]
     finally:
         os.remove(tmp_path)
-        
+
 # ── Schemas Pydantic ───────────────────────────────────────────────────────────
 class DNIRequest(BaseModel):
     dni: str
@@ -300,32 +300,43 @@ def registrar_dni(request: DNIRequest, db: Session = Depends(get_db)):
     if not request.dni.isdigit() or len(request.dni) != 8:
         raise HTTPException(status_code=400, detail="DNI inválido.")
 
+    # URL de la foto en Cloudinary (el admin la sube con el DNI como nombre)
+    cloud_name = os.getenv("CLOUDINARY_CLOUD_NAME")
+    foto_url = f"https://res.cloudinary.com/{cloud_name}/image/upload/electoral/ciudadanos/{request.dni}.jpg"
+
     votante = db.query(models.Votante).filter(
         models.Votante.dni == request.dni
     ).first()
 
     if not votante:
-        raise HTTPException(status_code=404, detail="DNI no registrado en el padrón electoral.")
+        # Primera vez — crear votante automáticamente
+        votante = models.Votante(
+            dni             = request.dni,
+            foto_url        = foto_url,
+            huella_validada = False,
+            rostro_validado = False,
+            ha_votado       = False
+        )
+        db.add(votante)
+    else:
+        # Ya existe — verificar si ya votó
+        if votante.ha_votado:
+            raise HTTPException(status_code=403, detail="Este DNI ya emitió su voto.")
+        # Reiniciar sesión biométrica
+        votante.huella_validada = False
+        votante.rostro_validado = False
+        votante.foto_url        = foto_url
 
-    if votante.ha_votado:
-        raise HTTPException(status_code=403, detail="Este DNI ya emitió su voto.")
-
-    if not votante.foto_url:
-        raise HTTPException(status_code=404, detail="Este ciudadano no tiene foto oficial registrada.")
-
-    # Reiniciar sesión biométrica
-    votante.huella_validada = False
-    votante.rostro_validado = False
     db.commit()
     db.refresh(votante)
 
     return {
-        "mensaje"      : "DNI reconocido",
-        "votante_id"   : votante.id,
+        "mensaje"   : "DNI reconocido",
+        "votante_id": votante.id,
         "datos_oficiales": {
             "dni"             : votante.dni,
-            "foto_oficial_url": votante.foto_url,   # URL de Cloudinary
-            "nombre_simulado" : votante.nombre or "CIUDADANO REGISTRADO"
+            "foto_oficial_url": foto_url,
+            "nombre_simulado" : "CIUDADANO REGISTRADO"
         }
     }
 
@@ -393,13 +404,6 @@ def verificar_rostro(request: RostroRequest, db: Session = Depends(get_db)):
     if not request.foto_base64:
         raise HTTPException(status_code=400, detail="Captura facial vacía.")
 
-    # ── NUEVO: si no hay embedding previo, el admin no registró la foto
-    if votante.face_embedding is None:
-        raise HTTPException(
-            status_code=404,
-            detail="No hay foto oficial registrada para este ciudadano. Contacte al administrador."
-        )
-
     image_data = base64.b64decode(request.foto_base64)
     nparr = np.frombuffer(image_data, np.uint8)
     img   = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -412,17 +416,34 @@ def verificar_rostro(request: RostroRequest, db: Session = Depends(get_db)):
             enforce_detection= True
         )[0]["embedding"]
 
-        stored    = pickle.loads(votante.face_embedding)
-        distancia = np.linalg.norm(np.array(current) - np.array(stored))
-        
-        print(f"Distancia facial para {votante.dni}: {distancia}")  # útil para debug
+        if votante.face_embedding is None:
+            # Primera vez — comparar contra la foto oficial de Cloudinary
+            embedding_oficial = generar_embedding_desde_url(votante.foto_url)
+            distancia = np.linalg.norm(
+                np.array(current) - np.array(embedding_oficial)
+            )
+            print(f"Distancia facial (vs foto oficial) para {votante.dni}: {distancia}")
 
-        if distancia < 10:
-            votante.rostro_validado = True
-            db.commit()
-            return {"mensaje": "Acceso biométrico concedido."}
+            if distancia < 10:
+                # Guardar embedding de la selfie para futuras sesiones
+                votante.face_embedding  = pickle.dumps(current)
+                votante.rostro_validado = True
+                db.commit()
+                return {"mensaje": "Acceso biométrico concedido."}
+            else:
+                raise HTTPException(status_code=401, detail="Rostro no coincide con la foto oficial.")
         else:
-            raise HTTPException(status_code=401, detail="Rostro no coincide.")
+            # Ya tiene embedding — comparar directamente
+            stored    = pickle.loads(votante.face_embedding)
+            distancia = np.linalg.norm(np.array(current) - np.array(stored))
+            print(f"Distancia facial (vs embedding guardado) para {votante.dni}: {distancia}")
+
+            if distancia < 10:
+                votante.rostro_validado = True
+                db.commit()
+                return {"mensaje": "Acceso biométrico concedido."}
+            else:
+                raise HTTPException(status_code=401, detail="Rostro no coincide.")
 
     except HTTPException:
         raise
