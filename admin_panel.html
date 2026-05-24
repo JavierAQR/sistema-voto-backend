@@ -558,6 +558,36 @@
         animation: spin 0.7s linear infinite;
       }
 
+      /* ── TABS ───────────────────────────── */
+      .tabs {
+  display: flex;
+  gap: 10px;
+  margin: 20px 0;
+}
+
+.tab {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 10px;
+  background: var(--bg);
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--sub);
+}
+
+.tab.active {
+  background: var(--azul);
+  color: white;
+}
+
+.tab-content {
+  display: none;
+}
+
+.tab-content.active {
+  display: block;
+}
+
       @keyframes spin {
         to {
           transform: rotate(360deg);
@@ -636,96 +666,175 @@
           </div>
         </div>
 
-        <div class="grid-2">
-          <!-- ── FORMULARIO NUEVO PARTIDO ── -->
-          <div class="card">
-            <div class="card-header">
-              <div class="icon icon-blue">➕</div>
-              <div>
-                <h3>Registrar Partido</h3>
-                <p>Complete todos los campos</p>
-              </div>
-            </div>
-            <div class="card-body">
-              <div class="form-row">
-                <label>Nombre completo</label>
-                <input
-                  type="text"
-                  id="nombre"
-                  placeholder="ej. Partido Democrático Nacional"
-                />
-              </div>
-              <div class="form-row">
-                <label>Siglas</label>
-                <input
-                  type="text"
-                  id="siglas"
-                  placeholder="ej. PDN"
-                  maxlength="6"
-                />
-              </div>
-              <div class="form-row">
-                <label>Logo del partido</label>
-                <div class="upload-zone" id="drop-zone">
-                  <input
-                    type="file"
-                    id="foto-input"
-                    accept="image/*"
-                    onchange="onFileChange(this)"
-                  />
-                  <div class="icon-up">🖼️</div>
-                  <p><strong>Haz clic o arrastra</strong> una imagen aquí</p>
-                  <p>PNG, JPG o WEBP · máx. 5 MB</p>
-                  <img id="preview-img" alt="Preview" />
+        <!-- TABS -->
+        <div class="tabs">
+            <button class="tab active" onclick="openTab('partidos')">🏛️ Partidos</button>
+            <button class="tab" onclick="openTab('facial')">👤 Verificación facial</button>
+        </div>
+        <div id="tab-partidos" class="tab-content active">
+            <div class="grid-2">
+                <!-- ── FORMULARIO NUEVO PARTIDO ── -->
+                <div class="card">
+                    <div class="card-header">
+                    <div class="icon icon-blue">➕</div>
+                    <div>
+                        <h3>Registrar Partido</h3>
+                        <p>Complete todos los campos</p>
+                    </div>
+                    </div>
+                    <div class="card-body">
+                    <div class="form-row">
+                        <label>Nombre completo</label>
+                        <input
+                        type="text"
+                        id="nombre"
+                        placeholder="ej. Partido Democrático Nacional"
+                        />
+                    </div>
+                    <div class="form-row">
+                        <label>Siglas</label>
+                        <input
+                        type="text"
+                        id="siglas"
+                        placeholder="ej. PDN"
+                        maxlength="6"
+                        />
+                    </div>
+                    <div class="form-row">
+                        <label>Logo del partido</label>
+                        <div class="upload-zone" id="drop-zone">
+                        <input
+                            type="file"
+                            id="foto-input"
+                            accept="image/*"
+                            onchange="onFileChange(this)"
+                        />
+                        <div class="icon-up">🖼️</div>
+                        <p><strong>Haz clic o arrastra</strong> una imagen aquí</p>
+                        <p>PNG, JPG o WEBP · máx. 5 MB</p>
+                        <img id="preview-img" alt="Preview" />
+                        </div>
+                    </div>
+                    <button
+                        class="btn-submit"
+                        id="btn-crear"
+                        onclick="crearPartido()"
+                    >
+                        <span>Registrar partido</span>
+                    </button>
+                    </div>
                 </div>
-              </div>
-              <button
-                class="btn-submit"
-                id="btn-crear"
-                onclick="crearPartido()"
-              >
-                <span>Registrar partido</span>
-              </button>
-            </div>
-          </div>
 
-          <!-- ── LISTA DE PARTIDOS ── -->
-          <div class="card">
-            <div class="card-header">
-              <div class="icon icon-red">🏛️</div>
-              <div>
-                <h3>Partidos registrados</h3>
-                <p>Gestiona los candidatos</p>
-              </div>
-            </div>
-            <div class="card-body" style="padding: 16px 24px">
-              <div class="toolbar">
-                <div class="search-box">
-                  <span>🔍</span>
-                  <input
-                    type="text"
-                    placeholder="Buscar partido…"
-                    oninput="filtrarTabla(this.value)"
-                  />
+                <!-- ── LISTA DE PARTIDOS ── -->
+                <div class="card">
+                    <div class="card-header">
+                    <div class="icon icon-red">🏛️</div>
+                    <div>
+                        <h3>Partidos registrados</h3>
+                        <p>Gestiona los candidatos</p>
+                    </div>
+                    </div>
+                    <div class="card-body" style="padding: 16px 24px">
+                    <div class="toolbar">
+                        <div class="search-box">
+                        <span>🔍</span>
+                        <input
+                            type="text"
+                            placeholder="Buscar partido…"
+                            oninput="filtrarTabla(this.value)"
+                        />
+                        </div>
+                        <span class="count-badge" id="count-badge">0</span>
+                    </div>
+                    <div style="overflow-x: auto">
+                        <table id="tabla-partidos">
+                        <thead>
+                            <tr>
+                            <th>Logo</th>
+                            <th>Nombre</th>
+                            <th>Siglas</th>
+                            <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbody"></tbody>
+                        </table>
+                    </div>
+                    <div id="empty-state" class="empty-state" style="display: none">
+                        <div class="big">🏛️</div>
+                        <p>No hay partidos registrados aún.</p>
+                    </div>
+                    </div>
                 </div>
-                <span class="count-badge" id="count-badge">0</span>
+
+                <!-- LISTA DE USUARIOS -->
+                <!-- <div class="card-body">
+                <div style="overflow-x:auto">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>DNI</th>
+                        <th>Foto</th>
+                        <th>Rostro</th>
+                        <th>Huella</th>
+                        <th>Voto</th>
+                    </tr>
+                    </thead>
+                    <tbody id="tbody-facial"></tbody>
+                </table>
+                </div>
+            </div> -->
+            </div>
+        </div>
+        <div id="tab-facial" class="tab-content">
+            <div class="card" style="margin-bottom: 20px;">
+                <div class="card-header">
+                  <div class="icon icon-blue">📸</div>
+                  <div>
+                    <h3>Registrar rostro por DNI</h3>
+                    <p>Sube imagen y asigna identidad</p>
+                  </div>
+                </div>
+              
+                <div class="card-body">
+              
+                  <div class="form-row">
+                    <label>DNI</label>
+                    <input type="text" id="dni-facial" placeholder="12345678" maxlength="8">
+                  </div>
+              
+                  <div class="form-row">
+                    <label>Imagen del rostro</label>
+                    <input type="file" id="file-facial" accept="image/*">
+                  </div>
+              
+                  <button class="btn-submit" onclick="guardarRostro()">
+                    Guardar verificación facial
+                  </button>
+              
+                </div>
               </div>
-              <div style="overflow-x: auto">
-                <table id="tabla-partidos">
+            <div class="card">
+              <div class="card-header">
+                <div class="icon icon-blue">👤</div>
+                <div>
+                  <h3>Verificación facial</h3>
+                  <p>Control de identidad biométrica</p>
+                </div>
+              </div>
+          
+              <div class="card-body">
+                <table>
                   <thead>
                     <tr>
-                      <th>Logo</th>
-                      <th>Nombre</th>
-                      <th>Siglas</th>
-                      <th></th>
+                      <th>DNI</th>
+                      <th>Imagen</th>
+                      <th>Huella</th>
+                      <th>Rostro validado</th>
+                      <th>Voto</th>
                     </tr>
                   </thead>
-                  <tbody id="tbody"></tbody>
+                  <tbody id="tbody-facial"></tbody>
                 </table>
-              </div>
-              <div id="empty-state" class="empty-state" style="display: none">
-                <div class="big">🏛️</div>
-                <p>No hay partidos registrados aún.</p>
               </div>
             </div>
           </div>
@@ -885,8 +994,20 @@
           // Stats extra (resultados)
           const r2 = await fetch(`${BASE_URL}/admin/results`);
           const data2 = await r2.json();
+          const r4 = await fetch(`${BASE_URL}/admin/verificaciones-faciales`);
+          const facial = await r4.json();
           const totalVotos = data2.resultados.reduce((s, p) => s + p.votos, 0);
           document.getElementById("stat-votos").textContent = totalVotos;
+
+          document.getElementById("tbody-facial").innerHTML = facial.map(v => `
+            <tr>
+                <td>${v.dni}</td>
+                <td><img src="${BASE_URL}${v.foto_url}" class="partido-logo"></td>
+                <td>${v.rostro_validado ? "✅" : "❌"}</td>
+                <td>${v.huella_validada ? "✅" : "❌"}</td>
+                <td>${v.ha_votado ? "🗳️" : "—"}</td>
+            </tr>
+          `).join("");
         } catch (e) {
           console.error(e);
         }
@@ -940,6 +1061,41 @@
           .join("");
       }
 
+      async function guardarRostro() {
+  const dni = document.getElementById("dni-facial").value.trim();
+  const file = document.getElementById("file-facial").files[0];
+
+  if (!dni || dni.length !== 8) {
+    toast("DNI inválido", "err");
+    return;
+  }
+
+  if (!file) {
+    toast("Selecciona una imagen", "err");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("dni", dni);   // 👈 texto
+  formData.append("file", file); // 👈 archivo
+
+  try {
+    const res = await fetch(`${BASE_URL}/admin/upload-dni-foto`, {
+      method: "POST",
+      body: formData // ❗ SIN headers
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) throw new Error(data.detail || "Error");
+
+    toast("✔ Foto guardada correctamente");
+
+  } catch (e) {
+    toast("❌ " + e.message, "err");
+  }
+}
+
       // ── FILTRO DE BÚSQUEDA ─────────────────────────────────────
       function filtrarTabla(q) {
         const filtrado = partidosData.filter(
@@ -949,6 +1105,14 @@
         );
         renderTabla(filtrado);
       }
+
+      function openTab(tab) {
+  document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+  document.querySelectorAll(".tab-content").forEach(c => c.classList.remove("active"));
+
+  document.querySelector(`[onclick="openTab('${tab}')"]`).classList.add("active");
+  document.getElementById(`tab-${tab}`).classList.add("active");
+}
     </script>
   </body>
 </html>

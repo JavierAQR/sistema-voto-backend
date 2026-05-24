@@ -11,6 +11,7 @@ import cv2
 import numpy as np
 from deepface import DeepFace
 from fastapi.responses import FileResponse
+from fastapi import Form, UploadFile, File
 
 # Creamos las tablas en la base de datos
 Base.metadata.create_all(bind=engine)
@@ -145,20 +146,30 @@ def leer_raiz():
 
 @app.post("/auth/register-dni")
 def registrar_dni(request: DNIRequest, db: Session = Depends(get_db)):
+    # 1. Validación básica del DNI
     if not request.dni.isdigit() or len(request.dni) != 8:
         raise HTTPException(status_code=400, detail="DNI inválido.")
 
-    foto_oficial_path = f"/static/{request.dni}.jpg"
+    # 2. Ruta física de la imagen del DNI
+    nombre_archivo = f"{request.dni}.jpg"
+    ruta_fisica = os.path.join(UPLOAD_DIR, nombre_archivo)
 
-    # Verificación de archivo físico
-    if not os.path.exists(os.path.join(UPLOAD_DIR, f"{request.dni}.jpg")):
-        print(f"ALERTA: No existe el archivo {request.dni}.jpg en {UPLOAD_DIR}")
+    # 3. Verificar si existe la foto del DNI
+    if not os.path.exists(ruta_fisica):
+        raise HTTPException(
+            status_code=404,
+            detail=f"No se encontró la foto del DNI {request.dni} en el servidor."
+        )
 
+    # 4. Ruta pública (frontend la usa)
+    foto_oficial_path = f"/static/{nombre_archivo}"
+
+    # 5. Buscar votante en BD
     votante = db.query(models.Votante).filter(
         models.Votante.dni == request.dni
     ).first()
 
-    # Si no existe, se crea
+    # 6. Si no existe, crearlo
     if not votante:
         votante = models.Votante(
             dni=request.dni,
@@ -168,23 +179,24 @@ def registrar_dni(request: DNIRequest, db: Session = Depends(get_db)):
         )
         db.add(votante)
 
-    # Si ya existe, se reinicia la sesión biométrica
     else:
-        # ── NUEVO: bloquear si ya votó ──────────────────────────
+        # 7. Bloquear doble voto
         if votante.ha_votado:
             raise HTTPException(
                 status_code=403,
                 detail="Este DNI ya emitió su voto."
             )
-        # ────────────────────────────────────────────────────────
+
+        # 8. Reset biométrico (nuevo intento de validación)
         votante.huella_validada = False
         votante.rostro_validado = False
 
     db.commit()
     db.refresh(votante)
 
+    # 9. Respuesta al frontend
     return {
-        "mensaje": "DNI reconocido por RENIEC",
+        "mensaje": "DNI reconocido correctamente",
         "votante_id": votante.id,
         "datos_oficiales": {
             "dni": request.dni,
@@ -192,6 +204,22 @@ def registrar_dni(request: DNIRequest, db: Session = Depends(get_db)):
             "nombre_simulado": "CIUDADANO REGISTRADO"
         }
     }
+
+@app.get("/admin/verificaciones-faciales")
+def listar_verificaciones(db: Session = Depends(get_db)):
+    votantes = db.query(models.Votante).all()
+
+    return [
+        {
+            "id": v.id,
+            "dni": v.dni,
+            "rostro_validado": v.rostro_validado,
+            "huella_validada": v.huella_validada,
+            "ha_votado": v.ha_votado,
+            "foto_url": f"/static/{v.dni}.jpg"
+        }
+        for v in votantes
+    ]
 
 @app.post("/auth/verify-face")
 def verificar_rostro(request: RostroRequest, db: Session = Depends(get_db)):
@@ -298,3 +326,23 @@ def conteo_de_votos(db: Session = Depends(get_db)):
     
     reporte = [{"partido": n, "siglas": s, "votos": t} for n, s, t in resultados]
     return {"mensaje": "Reporte de resultados", "resultados": reporte}
+
+@app.post("/admin/upload-dni-foto")
+def subir_foto_dni(
+    dni: str = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    if not dni.isdigit() or len(dni) != 8:
+        raise HTTPException(status_code=400, detail="DNI inválido")
+
+    nombre_archivo = f"{dni}.jpg"
+    ruta = os.path.join(UPLOAD_DIR, nombre_archivo)
+
+    with open(ruta, "wb") as buffer:
+        buffer.write(file.file.read())
+
+    return {
+        "mensaje": "Foto DNI guardada correctamente",
+        "ruta": f"/static/{nombre_archivo}"
+    }
