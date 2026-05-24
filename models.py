@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime
 from datetime import datetime
 from database import Base
+from sqlalchemy import Float, LargeBinary
 
 class PartidoPolitico(Base):
     __tablename__ = "partidos"
@@ -19,6 +20,9 @@ class Votante(Base):
     huella_validada = Column(Boolean, default=False)
     rostro_validado = Column(Boolean, default=False)
     ha_votado = Column(Boolean, default=False)
+
+    # embedding facial
+    face_embedding = Column(LargeBinary, nullable=True)
 
 class Voto(Base):
     __tablename__ = "votos"

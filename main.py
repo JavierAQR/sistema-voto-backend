@@ -132,9 +132,15 @@ def registrar_dni(request: DNIRequest, db: Session = Depends(get_db)):
 
     # Si ya existe, se reinicia la sesión biométrica
     else:
+        # ── NUEVO: bloquear si ya votó ──────────────────────────
+        if votante.ha_votado:
+            raise HTTPException(
+                status_code=403,
+                detail="Este DNI ya emitió su voto."
+            )
+        # ────────────────────────────────────────────────────────
         votante.huella_validada = False
         votante.rostro_validado = False
-        # OJO: NO tocamos ha_votado
 
     db.commit()
     db.refresh(votante)
@@ -151,72 +157,66 @@ def registrar_dni(request: DNIRequest, db: Session = Depends(get_db)):
 
 @app.post("/auth/verify-face")
 def verificar_rostro(request: RostroRequest, db: Session = Depends(get_db)):
-    votante = db.query(models.Votante).filter(models.Votante.id == request.votante_id).first()
-    
+
+    import pickle
+
+    votante = db.query(models.Votante).filter(
+        models.Votante.id == request.votante_id
+    ).first()
+
     if not votante:
         raise HTTPException(status_code=404, detail="Votante no encontrado.")
-    
-    foto_oficial_path = os.path.join(UPLOAD_DIR, f"{votante.dni}.jpg")
-    
-    if not os.path.exists(foto_oficial_path):
-        raise HTTPException(status_code=404, detail="No hay foto oficial para comparar.")
-        
+
     if not request.foto_base64:
         raise HTTPException(status_code=400, detail="Captura facial vacía.")
 
+    # 🔥 convertir imagen
+    image_data = base64.b64decode(request.foto_base64)
+    nparr = np.frombuffer(image_data, np.uint8)
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
     try:
-        # 1. Decodificar lo que llega del Emulador o del Samsung
-        image_data = base64.b64decode(request.foto_base64)
-        nparr = np.frombuffer(image_data, np.uint8)
-        img_celular_rotada = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        # 🔥 obtener embedding del rostro actual
+        current = DeepFace.represent(
+            img_path=img,
+            model_name="Facenet512",
+            detector_backend="opencv",
+            enforce_detection=True
+        )[0]["embedding"]
 
-        # 2. GUARDAR ORIGINAL (CRÍTICO para ver cómo llega del A32)
-        cv2.imwrite("debug_1_ORIGINAL.jpg", img_celular_rotada)
+        # -------------------------
+        # CASO 1: PRIMER REGISTRO
+        # -------------------------
+        if votante.face_embedding is None:
 
-        # 3. ROTAR LA IMAGEN (Corrección de 90 grados)
-        #celular
-        img_celular_vertical = cv2.rotate(img_celular_rotada, cv2.ROTATE_90_COUNTERCLOCKWISE)
-        # emulador 
-        # img_celular_vertical = cv2.rotate(img_celular_rotada, cv2.ROTATE_90_CLOCKWISE)
+            votante.face_embedding = pickle.dumps(current)
+            votante.rostro_validado = True
+            db.commit()
 
-        # 4. GUARDAR CORREGIDA (CRÍTICO para ver si la IA la ve derecha)
-        cv2.imwrite("debug_2_CORREGIDA.jpg", img_celular_vertical)
-        
-        print("--- SISTEMA BIOMÉTRICO: FOTOS DE DEBUG GENERADAS ---")
+            return {"mensaje": "Rostro registrado correctamente."}
 
-        # 5. PASAR LA FOTO ENDEREZADA A LA IA
-        resultado = DeepFace.verify(
-            img1_path = img_celular_vertical,
-            img2_path = foto_oficial_path,
-            model_name = 'Facenet512',
-            detector_backend = 'opencv',
-            enforce_detection = True,
-            align = True
+        # -------------------------
+        # CASO 2: COMPARACIÓN
+        # -------------------------
+        stored = pickle.loads(votante.face_embedding)
+
+        distancia = np.linalg.norm(
+            np.array(current) - np.array(stored)
         )
 
-        distancia = resultado["distance"]
-        
-        # Umbral en 0.48 (Tolerancia ideal para presentación del proyecto)
-        match_final = distancia < 0.48 
+        match = distancia < 10  # umbral estable para embeddings
 
-        print(f"RESULTADO: DNI {votante.dni} | Distancia: {distancia:.4f} | Match: {match_final}")
-
-        if match_final:
+        if match:
             votante.rostro_validado = True
             db.commit()
             return {"mensaje": "Acceso biométrico concedido."}
         else:
-            raise HTTPException(status_code=401, detail="El rostro no coincide.")
+            raise HTTPException(status_code=401, detail="Rostro no coincide.")
 
-    # Manejo correcto de errores
-    except HTTPException:
-        raise 
-    except ValueError:
-        raise HTTPException(status_code=400, detail="IA no detecta rostro. Mejore la iluminación.")
     except Exception as e:
-        print(f"ERROR CRÍTICO: {str(e)}")
-        raise HTTPException(status_code=500, detail="Error interno del motor biométrico.")
-
+        print("ERROR BIOMETRÍA:", str(e))
+        raise HTTPException(status_code=500, detail="Error en reconocimiento facial")
+    
 @app.post("/auth/verify-fingerprint")
 def verificar_huella(request: HuellaRequest, db: Session = Depends(get_db)):
     votante = db.query(models.Votante).filter(models.Votante.id == request.votante_id).first()
@@ -234,8 +234,8 @@ def verificar_huella(request: HuellaRequest, db: Session = Depends(get_db)):
 def emitir_voto(request: VotoRequest, db: Session = Depends(get_db)):
     votante = db.query(models.Votante).filter(models.Votante.id == request.votante_id).first()
     
-    if not votante or votante.ha_votado:
-        raise HTTPException(status_code=403, detail="Acceso denegado o ya votó.")
+    if votante.ha_votado:
+        raise HTTPException(status_code=403, detail="Ya has votado.")
     
     if not votante.huella_validada or not votante.rostro_validado:
         raise HTTPException(status_code=403, detail="Falta validación multifactor.")

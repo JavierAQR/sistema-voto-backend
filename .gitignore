@@ -13,6 +13,8 @@ ENV/
 .env
 .env.*
 
+debug_*
+
 # IDE / editores
 .vscode/
 .idea/
@@ -53,3 +55,6 @@ credentials.json
 # Archivos temporales
 *.tmp
 *.bak
+
+uploads/dni_fotos/*
+uploads/partidos/*
