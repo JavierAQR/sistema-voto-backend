@@ -109,19 +109,35 @@ def leer_raiz():
 def registrar_dni(request: DNIRequest, db: Session = Depends(get_db)):
     if not request.dni.isdigit() or len(request.dni) != 8:
         raise HTTPException(status_code=400, detail="DNI inválido.")
-    
+
     foto_oficial_path = f"/static/{request.dni}.jpg"
-    
-    # Verificación de archivo físico para el desarrollador
+
+    # Verificación de archivo físico
     if not os.path.exists(os.path.join(UPLOAD_DIR, f"{request.dni}.jpg")):
         print(f"ALERTA: No existe el archivo {request.dni}.jpg en {UPLOAD_DIR}")
 
-    votante = db.query(models.Votante).filter(models.Votante.dni == request.dni).first()
+    votante = db.query(models.Votante).filter(
+        models.Votante.dni == request.dni
+    ).first()
+
+    # Si no existe, se crea
     if not votante:
-        votante = models.Votante(dni=request.dni)
+        votante = models.Votante(
+            dni=request.dni,
+            huella_validada=False,
+            rostro_validado=False,
+            ha_votado=False
+        )
         db.add(votante)
-        db.commit()
-        db.refresh(votante)
+
+    # Si ya existe, se reinicia la sesión biométrica
+    else:
+        votante.huella_validada = False
+        votante.rostro_validado = False
+        # OJO: NO tocamos ha_votado
+
+    db.commit()
+    db.refresh(votante)
 
     return {
         "mensaje": "DNI reconocido por RENIEC",
