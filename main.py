@@ -66,6 +66,28 @@ def subir_a_cloudinary(foto_base64: str, folder: str, public_id: str) -> str:
     )
     return resultado["secure_url"]
 
+
+def generar_embedding_desde_url(foto_url: str):
+    """Descarga la foto de Cloudinary y genera el embedding facial."""
+    import urllib.request
+    import tempfile
+    
+    # Descargar la imagen temporalmente
+    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+        urllib.request.urlretrieve(foto_url, tmp.name)
+        tmp_path = tmp.name
+    
+    try:
+        resultado = DeepFace.represent(
+            img_path         = tmp_path,
+            model_name       = "Facenet512",
+            detector_backend = "opencv",
+            enforce_detection= False  
+        )
+        return resultado[0]["embedding"]
+    finally:
+        os.remove(tmp_path)
+        
 # ── Schemas Pydantic ───────────────────────────────────────────────────────────
 class DNIRequest(BaseModel):
     dni: str
@@ -460,24 +482,3 @@ def conteo_votos(db: Session = Depends(get_db)):
         "mensaje"   : "Reporte de resultados",
         "resultados": [{"partido": n, "siglas": s, "votos": t} for n, s, t in resultados]
     }
-
-def generar_embedding_desde_url(foto_url: str):
-    """Descarga la foto de Cloudinary y genera el embedding facial."""
-    import urllib.request
-    import tempfile
-    
-    # Descargar la imagen temporalmente
-    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
-        urllib.request.urlretrieve(foto_url, tmp.name)
-        tmp_path = tmp.name
-    
-    try:
-        resultado = DeepFace.represent(
-            img_path         = tmp_path,
-            model_name       = "Facenet512",
-            detector_backend = "opencv",
-            enforce_detection= False  
-        )
-        return resultado[0]["embedding"]
-    finally:
-        os.remove(tmp_path)
