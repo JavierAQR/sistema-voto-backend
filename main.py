@@ -55,14 +55,23 @@ def get_db():
         db.close()
 
 # ── Helper: subir imagen a Cloudinary ─────────────────────────────────────────
-def subir_a_cloudinary(foto_base64: str, folder: str, public_id: str) -> str:
-    """Recibe base64 puro (sin prefijo), sube a Cloudinary y devuelve la URL segura."""
+def subir_foto_partido(foto_base64: str, public_id: str) -> str:
     resultado = cloudinary.uploader.upload(
         f"data:image/jpeg;base64,{foto_base64}",
-        folder         = folder,
-        public_id      = public_id,
-        overwrite      = True,
-        transformation = [{"width": 500, "height": 500, "crop": "fill", "gravity": "face"}]
+        folder        = "electoral/partidos",
+        public_id     = public_id,
+        overwrite     = True,
+        transformation= [{"width": 400, "height": 400, "crop": "fill"}]
+    )
+    return resultado["secure_url"]
+
+def subir_foto_ciudadano(foto_base64: str, public_id: str) -> str:
+    """Sin transformaciones para preservar el rostro completo."""
+    resultado = cloudinary.uploader.upload(
+        f"data:image/jpeg;base64,{foto_base64}",
+        folder    = "electoral/ciudadanos",
+        public_id = public_id,
+        overwrite = True
     )
     return resultado["secure_url"]
 
@@ -127,6 +136,22 @@ def debug_votante(dni: str, db: Session = Depends(get_db)):
         "tiene_embedding": v.face_embedding is not None,
     }
 
+@app.get("/admin/test-distancia/{dni}")
+def test_distancia(dni: str, db: Session = Depends(get_db)):
+    votante = db.query(models.Votante).filter(models.Votante.dni == dni).first()
+    if not votante or not votante.foto_url:
+        return {"error": "no encontrado"}
+    
+    try:
+        embedding_oficial = generar_embedding_desde_url(votante.foto_url)
+        return {
+            "ok": True,
+            "embedding_len": len(embedding_oficial),
+            "foto_url": votante.foto_url
+        }
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
 # ══════════════════════════════════════════════════════════════════════════════
 # PANEL ADMIN (sirve el HTML)
 # ══════════════════════════════════════════════════════════════════════════════
@@ -146,11 +171,7 @@ def crear_partido(request: PartidoCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail=f"Las siglas '{request.siglas}' ya están registradas.")
 
     try:
-        foto_url = subir_a_cloudinary(
-            request.foto_base64,
-            folder    = "electoral/partidos",
-            public_id = request.siglas.lower()
-        )
+        foto_url = subir_foto_partido(request.foto_base64, request.siglas.lower())
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error subiendo imagen: {str(e)}")
 
@@ -201,11 +222,7 @@ def registrar_ciudadano(request: CiudadanoCreate, db: Session = Depends(get_db))
         raise HTTPException(status_code=400, detail="DNI inválido.")
 
     try:
-        foto_url = subir_a_cloudinary(
-            request.foto_base64,
-            folder    = "electoral/ciudadanos",
-            public_id = request.dni
-        )
+        foto_url = subir_foto_ciudadano(request.foto_base64, request.dni)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error subiendo foto: {str(e)}")
 
@@ -354,11 +371,7 @@ async def subir_foto_dni(
     foto_base64 = base64.b64encode(contenido).decode("utf-8")
 
     try:
-        foto_url = subir_a_cloudinary(
-            foto_base64,
-            folder    = "electoral/ciudadanos",
-            public_id = dni
-        )
+        foto_url = subir_foto_ciudadano(foto_base64, dni)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error subiendo foto: {str(e)}")
 
