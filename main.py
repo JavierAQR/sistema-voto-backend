@@ -115,6 +115,18 @@ class CiudadanoCreate(BaseModel):
     nombre: str
     foto_base64: str
 
+@app.get("/admin/debug/{dni}")
+def debug_votante(dni: str, db: Session = Depends(get_db)):
+    v = db.query(models.Votante).filter(models.Votante.dni == dni).first()
+    if not v:
+        return {"error": "no encontrado"}
+    return {
+        "dni": v.dni,
+        "tiene_foto_url": v.foto_url is not None,
+        "foto_url": v.foto_url,
+        "tiene_embedding": v.face_embedding is not None,
+    }
+
 # ══════════════════════════════════════════════════════════════════════════════
 # PANEL ADMIN (sirve el HTML)
 # ══════════════════════════════════════════════════════════════════════════════
@@ -300,33 +312,22 @@ def registrar_dni(request: DNIRequest, db: Session = Depends(get_db)):
     if not request.dni.isdigit() or len(request.dni) != 8:
         raise HTTPException(status_code=400, detail="DNI inválido.")
 
-    # URL de la foto en Cloudinary (el admin la sube con el DNI como nombre)
-    cloud_name = os.getenv("CLOUDINARY_CLOUD_NAME")
-    foto_url = f"https://res.cloudinary.com/{cloud_name}/image/upload/electoral/ciudadanos/{request.dni}.jpg"
-
     votante = db.query(models.Votante).filter(
         models.Votante.dni == request.dni
     ).first()
 
-    if not votante:
-        # Primera vez — crear votante automáticamente
-        votante = models.Votante(
-            dni             = request.dni,
-            foto_url        = foto_url,
-            huella_validada = False,
-            rostro_validado = False,
-            ha_votado       = False
+    # Si no existe en BD significa que el admin no subió la foto aún
+    if not votante or not votante.foto_url:
+        raise HTTPException(
+            status_code=404,
+            detail="DNI no registrado. El administrador debe subir la foto primero."
         )
-        db.add(votante)
-    else:
-        # Ya existe — verificar si ya votó
-        if votante.ha_votado:
-            raise HTTPException(status_code=403, detail="Este DNI ya emitió su voto.")
-        # Reiniciar sesión biométrica
-        votante.huella_validada = False
-        votante.rostro_validado = False
-        votante.foto_url        = foto_url
 
+    if votante.ha_votado:
+        raise HTTPException(status_code=403, detail="Este DNI ya emitió su voto.")
+
+    votante.huella_validada = False
+    votante.rostro_validado = False
     db.commit()
     db.refresh(votante)
 
@@ -335,7 +336,7 @@ def registrar_dni(request: DNIRequest, db: Session = Depends(get_db)):
         "votante_id": votante.id,
         "datos_oficiales": {
             "dni"             : votante.dni,
-            "foto_oficial_url": foto_url,
+            "foto_oficial_url": votante.foto_url,  # URL real de Cloudinary
             "nombre_simulado" : "CIUDADANO REGISTRADO"
         }
     }
@@ -361,29 +362,21 @@ async def subir_foto_dni(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error subiendo foto: {str(e)}")
 
-    # ── NUEVO: generar embedding desde la foto oficial ─────────
-    try:
-        embedding = generar_embedding_desde_url(foto_url)
-        embedding_bytes = pickle.dumps(embedding)
-    except Exception as e:
-        print(f"ADVERTENCIA: No se pudo generar embedding para {dni}: {e}")
-        embedding_bytes = None
-    # ──────────────────────────────────────────────────────────
-
+    # Siempre crear/actualizar el votante con la URL real de Cloudinary
     votante = db.query(models.Votante).filter(
         models.Votante.dni == dni
     ).first()
 
     if votante:
         votante.foto_url       = foto_url
-        votante.face_embedding = embedding_bytes
+        votante.face_embedding = None   # resetear embedding para que se regenere
         votante.rostro_validado = False
         votante.huella_validada = False
     else:
         votante = models.Votante(
             dni             = dni,
             foto_url        = foto_url,
-            face_embedding  = embedding_bytes,
+            face_embedding  = None,
             huella_validada = False,
             rostro_validado = False,
             ha_votado       = False
@@ -391,7 +384,7 @@ async def subir_foto_dni(
         db.add(votante)
 
     db.commit()
-    return {"mensaje": "Foto guardada y embedding generado", "foto_url": foto_url}
+    return {"mensaje": "Foto guardada", "foto_url": foto_url}
 
 
 @app.post("/auth/verify-face")
