@@ -6,12 +6,11 @@ __pycache__/
 # Entornos virtuales
 venv/
 .venv/
-env/
 ENV/
 
 # Archivos de configuración local
 .env
-.env.*
+
 
 debug_*
 
