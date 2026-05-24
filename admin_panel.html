@@ -1002,12 +1002,15 @@
           document.getElementById("tbody-facial").innerHTML = facial.map(v => `
             <tr>
                 <td>${v.dni}</td>
-                <td><img src="${BASE_URL}${v.foto_url}" class="partido-logo"></td>
+                <td>${v.foto_url
+                    ? `<img src="${v.foto_url}" class="partido-logo">`
+                    : '—'}
+                </td>
                 <td>${v.rostro_validado ? "✅" : "❌"}</td>
                 <td>${v.huella_validada ? "✅" : "❌"}</td>
                 <td>${v.ha_votado ? "🗳️" : "—"}</td>
             </tr>
-          `).join("");
+        `).join("");
         } catch (e) {
           console.error(e);
         }

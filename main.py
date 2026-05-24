@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from fastapi import Form, UploadFile, File
 
 from database import SessionLocal, engine, Base
 import models
@@ -214,6 +215,22 @@ def listar_ciudadanos(db: Session = Depends(get_db)):
         for v in votantes
     ]
 
+@app.get("/admin/verificaciones-faciales")
+def listar_verificaciones(db: Session = Depends(get_db)):
+    votantes = db.query(models.Votante).all()
+
+    return [
+        {
+            "id": v.id,
+            "dni": v.dni,
+            "rostro_validado": v.rostro_validado,
+            "huella_validada": v.huella_validada,
+            "ha_votado": v.ha_votado,
+            "foto_url":  v.foto_url,
+        }
+        for v in votantes
+    ]
+
 
 @app.delete("/admin/ciudadanos/{votante_id}")
 def eliminar_ciudadano(votante_id: int, db: Session = Depends(get_db)):
@@ -279,6 +296,49 @@ def registrar_dni(request: DNIRequest, db: Session = Depends(get_db)):
             "nombre_simulado" : votante.nombre or "CIUDADANO REGISTRADO"
         }
     }
+
+@app.post("/admin/upload-dni-foto")
+async def subir_foto_dni(
+    dni: str = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    if not dni.isdigit() or len(dni) != 8:
+        raise HTTPException(status_code=400, detail="DNI inválido")
+
+    # Leer el archivo y convertir a base64
+    contenido = await file.read()
+    foto_base64 = base64.b64encode(contenido).decode("utf-8")
+
+    # Subir a Cloudinary
+    try:
+        foto_url = subir_a_cloudinary(
+            foto_base64,
+            folder    = "electoral/ciudadanos",
+            public_id = dni
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error subiendo foto: {str(e)}")
+
+    # Actualizar o crear el votante en la BD
+    votante = db.query(models.Votante).filter(
+        models.Votante.dni == dni
+    ).first()
+
+    if votante:
+        votante.foto_url = foto_url
+    else:
+        votante = models.Votante(
+            dni             = dni,
+            foto_url        = foto_url,
+            huella_validada = False,
+            rostro_validado = False,
+            ha_votado       = False
+        )
+        db.add(votante)
+
+    db.commit()
+    return {"mensaje": "Foto guardada en Cloudinary", "foto_url": foto_url}
 
 
 @app.post("/auth/verify-face")
