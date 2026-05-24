@@ -2,6 +2,7 @@ services:
   - type: web
     name: voto-electronico-api
     env: python
+    pythonVersion: "3.10.12"
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
