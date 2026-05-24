@@ -166,7 +166,6 @@ def registrar_ciudadano(request: CiudadanoCreate, db: Session = Depends(get_db))
     if not request.dni.isdigit() or len(request.dni) != 8:
         raise HTTPException(status_code=400, detail="DNI inválido.")
 
-    # Subir foto a Cloudinary con el DNI como public_id
     try:
         foto_url = subir_a_cloudinary(
             request.foto_base64,
@@ -176,20 +175,31 @@ def registrar_ciudadano(request: CiudadanoCreate, db: Session = Depends(get_db))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error subiendo foto: {str(e)}")
 
-    # Crear o actualizar votante
+    # ── NUEVO: generar embedding desde la foto oficial ─────────
+    try:
+        embedding = generar_embedding_desde_url(foto_url)
+        embedding_bytes = pickle.dumps(embedding)
+    except Exception as e:
+        print(f"ADVERTENCIA: No se pudo generar embedding para {request.dni}: {e}")
+        embedding_bytes = None
+    # ──────────────────────────────────────────────────────────
+
     votante = db.query(models.Votante).filter(
         models.Votante.dni == request.dni
     ).first()
 
     if votante:
-        # Actualizar foto y nombre si ya existe
-        votante.nombre   = request.nombre
-        votante.foto_url = foto_url
+        votante.nombre         = request.nombre
+        votante.foto_url       = foto_url
+        votante.face_embedding = embedding_bytes 
+        votante.rostro_validado = False
+        votante.huella_validada = False
     else:
         votante = models.Votante(
             dni             = request.dni,
             nombre          = request.nombre,
             foto_url        = foto_url,
+            face_embedding  = embedding_bytes,  
             huella_validada = False,
             rostro_validado = False,
             ha_votado       = False
@@ -306,11 +316,9 @@ async def subir_foto_dni(
     if not dni.isdigit() or len(dni) != 8:
         raise HTTPException(status_code=400, detail="DNI inválido")
 
-    # Leer el archivo y convertir a base64
-    contenido = await file.read()
+    contenido   = await file.read()
     foto_base64 = base64.b64encode(contenido).decode("utf-8")
 
-    # Subir a Cloudinary
     try:
         foto_url = subir_a_cloudinary(
             foto_base64,
@@ -320,17 +328,29 @@ async def subir_foto_dni(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error subiendo foto: {str(e)}")
 
-    # Actualizar o crear el votante en la BD
+    # ── NUEVO: generar embedding desde la foto oficial ─────────
+    try:
+        embedding = generar_embedding_desde_url(foto_url)
+        embedding_bytes = pickle.dumps(embedding)
+    except Exception as e:
+        print(f"ADVERTENCIA: No se pudo generar embedding para {dni}: {e}")
+        embedding_bytes = None
+    # ──────────────────────────────────────────────────────────
+
     votante = db.query(models.Votante).filter(
         models.Votante.dni == dni
     ).first()
 
     if votante:
-        votante.foto_url = foto_url
+        votante.foto_url       = foto_url
+        votante.face_embedding = embedding_bytes
+        votante.rostro_validado = False
+        votante.huella_validada = False
     else:
         votante = models.Votante(
             dni             = dni,
             foto_url        = foto_url,
+            face_embedding  = embedding_bytes,
             huella_validada = False,
             rostro_validado = False,
             ha_votado       = False
@@ -338,7 +358,7 @@ async def subir_foto_dni(
         db.add(votante)
 
     db.commit()
-    return {"mensaje": "Foto guardada en Cloudinary", "foto_url": foto_url}
+    return {"mensaje": "Foto guardada y embedding generado", "foto_url": foto_url}
 
 
 @app.post("/auth/verify-face")
@@ -351,7 +371,13 @@ def verificar_rostro(request: RostroRequest, db: Session = Depends(get_db)):
     if not request.foto_base64:
         raise HTTPException(status_code=400, detail="Captura facial vacía.")
 
-    # Decodificar imagen capturada
+    # ── NUEVO: si no hay embedding previo, el admin no registró la foto
+    if votante.face_embedding is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No hay foto oficial registrada para este ciudadano. Contacte al administrador."
+        )
+
     image_data = base64.b64decode(request.foto_base64)
     nparr = np.frombuffer(image_data, np.uint8)
     img   = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -364,19 +390,12 @@ def verificar_rostro(request: RostroRequest, db: Session = Depends(get_db)):
             enforce_detection= True
         )[0]["embedding"]
 
-        # Primer registro de embedding
-        if votante.face_embedding is None:
-            votante.face_embedding = pickle.dumps(current)
-            votante.rostro_validado = True
-            db.commit()
-            return {"mensaje": "Rostro registrado correctamente."}
-
-        # Comparación
-        stored   = pickle.loads(votante.face_embedding)
+        stored    = pickle.loads(votante.face_embedding)
         distancia = np.linalg.norm(np.array(current) - np.array(stored))
-        match    = distancia < 10
+        
+        print(f"Distancia facial para {votante.dni}: {distancia}")  # útil para debug
 
-        if match:
+        if distancia < 10:
             votante.rostro_validado = True
             db.commit()
             return {"mensaje": "Acceso biométrico concedido."}
@@ -441,3 +460,24 @@ def conteo_votos(db: Session = Depends(get_db)):
         "mensaje"   : "Reporte de resultados",
         "resultados": [{"partido": n, "siglas": s, "votos": t} for n, s, t in resultados]
     }
+
+def generar_embedding_desde_url(foto_url: str):
+    """Descarga la foto de Cloudinary y genera el embedding facial."""
+    import urllib.request
+    import tempfile
+    
+    # Descargar la imagen temporalmente
+    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+        urllib.request.urlretrieve(foto_url, tmp.name)
+        tmp_path = tmp.name
+    
+    try:
+        resultado = DeepFace.represent(
+            img_path         = tmp_path,
+            model_name       = "Facenet512",
+            detector_backend = "opencv",
+            enforce_detection= False  
+        )
+        return resultado[0]["embedding"]
+    finally:
+        os.remove(tmp_path)
