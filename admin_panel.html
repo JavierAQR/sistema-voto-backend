@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Panel Electoral · Administración</title>
+    <style>
+      @import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@500&display=swap");
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      :root {
+        --azul: #0d2e6e;
+        --azul2: #1a4baa;
+        --rojo: #bf0a2e;
+        --dorado: #f0c040;
+        --bg: #f0f3fa;
+        --card: #ffffff;
+        --texto: #0d1b3e;
+        --sub: #5a6a8a;
+        --border: #d8dff0;
+        --ok: #1b8a5a;
+        --radius: 14px;
+      }
+
+      body {
+        font-family: "DM Sans", sans-serif;
+        background: var(--bg);
+        color: var(--texto);
+        min-height: 100vh;
+      }
+
+      /* ── LOGIN ────────────────────────────────────────────────── */
+      #login-screen {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(135deg, var(--azul) 0%, var(--azul2) 100%);
+      }
+
+      .login-card {
+        background: white;
+        border-radius: 20px;
+        padding: 48px 40px;
+        width: 100%;
+        max-width: 400px;
+        box-shadow: 0 24px 64px rgba(13, 46, 110, 0.25);
+        text-align: center;
+      }
+
+      .login-card .escudo {
+        font-size: 48px;
+        margin-bottom: 16px;
+      }
+
+      .login-card h1 {
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--azul);
+        margin-bottom: 6px;
+      }
+
+      .login-card p {
+        font-size: 13px;
+        color: var(--sub);
+        margin-bottom: 32px;
+      }
+
+      .field {
+        text-align: left;
+        margin-bottom: 18px;
+      }
+
+      .field label {
+        display: block;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--sub);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 6px;
+      }
+
+      .field input {
+        width: 100%;
+        padding: 12px 16px;
+        border: 1.5px solid var(--border);
+        border-radius: 10px;
+        font-family: inherit;
+        font-size: 15px;
+        color: var(--texto);
+        outline: none;
+        transition: border-color 0.2s;
+      }
+
+      .field input:focus {
+        border-color: var(--azul2);
+      }
+
+      .btn-primary {
+        width: 100%;
+        padding: 14px;
+        background: var(--azul);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-family: inherit;
+        font-size: 15px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s, transform 0.1s;
+        margin-top: 8px;
+      }
+
+      .btn-primary:hover {
+        background: var(--azul2);
+      }
+      .btn-primary:active {
+        transform: scale(0.98);
+      }
+
+      #login-error {
+        margin-top: 14px;
+        color: var(--rojo);
+        font-size: 13px;
+        display: none;
+      }
+
+      /* ── DASHBOARD ────────────────────────────────────────────── */
+      #dashboard {
+        display: none;
+      }
+
+      header {
+        background: linear-gradient(90deg, var(--azul) 0%, var(--azul2) 100%);
+        padding: 0 32px;
+        height: 64px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        box-shadow: 0 2px 12px rgba(13, 46, 110, 0.3);
+      }
+
+      header .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: white;
+      }
+
+      header .brand span {
+        font-size: 22px;
+      }
+      header .brand h2 {
+        font-size: 16px;
+        font-weight: 700;
+      }
+      header .brand p {
+        font-size: 11px;
+        opacity: 0.75;
+      }
+
+      .badge-admin {
+        background: var(--dorado);
+        color: var(--azul);
+        font-size: 11px;
+        font-weight: 700;
+        padding: 4px 12px;
+        border-radius: 20px;
+        letter-spacing: 0.05em;
+      }
+
+      main {
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 32px 24px;
+      }
+
+      .grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+        align-items: start;
+      }
+
+      @media (max-width: 700px) {
+        .grid-2 {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      /* ── CARDS ────────────────────────────────────────────────── */
+      .card {
+        background: var(--card);
+        border-radius: var(--radius);
+        box-shadow: 0 2px 12px rgba(13, 46, 110, 0.07);
+        overflow: hidden;
+      }
+
+      .card-header {
+        padding: 20px 24px 16px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .card-header .icon {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 18px;
+      }
+
+      .icon-blue {
+        background: rgba(13, 46, 110, 0.08);
+      }
+      .icon-red {
+        background: rgba(191, 10, 46, 0.08);
+      }
+
+      .card-header h3 {
+        font-size: 15px;
+        font-weight: 700;
+        color: var(--texto);
+      }
+      .card-header p {
+        font-size: 12px;
+        color: var(--sub);
+      }
+
+      .card-body {
+        padding: 24px;
+      }
+
+      /* ── FORMULARIO ───────────────────────────────────────────── */
+      .form-row {
+        margin-bottom: 18px;
+      }
+
+      .form-row label {
+        display: block;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--sub);
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 6px;
+      }
+
+      .form-row input[type="text"] {
+        width: 100%;
+        padding: 11px 14px;
+        border: 1.5px solid var(--border);
+        border-radius: 10px;
+        font-family: inherit;
+        font-size: 14px;
+        color: var(--texto);
+        outline: none;
+        transition: border-color 0.2s;
+      }
+
+      .form-row input[type="text"]:focus {
+        border-color: var(--azul2);
+      }
+
+      /* ── UPLOAD ZONE ──────────────────────────────────────────── */
+      .upload-zone {
+        border: 2px dashed var(--border);
+        border-radius: 12px;
+        padding: 32px 16px;
+        text-align: center;
+        cursor: pointer;
+        transition: border-color 0.2s, background 0.2s;
+        position: relative;
+      }
+
+      .upload-zone:hover {
+        border-color: var(--azul2);
+        background: rgba(26, 75, 170, 0.03);
+      }
+      .upload-zone.drag {
+        border-color: var(--azul);
+        background: rgba(26, 75, 170, 0.06);
+      }
+
+      .upload-zone input {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        cursor: pointer;
+      }
+
+      .upload-zone .icon-up {
+        font-size: 32px;
+        margin-bottom: 8px;
+      }
+      .upload-zone p {
+        font-size: 13px;
+        color: var(--sub);
+      }
+      .upload-zone strong {
+        color: var(--azul2);
+      }
+
+      #preview-img {
+        width: 100%;
+        max-height: 180px;
+        object-fit: contain;
+        border-radius: 10px;
+        margin-top: 14px;
+        display: none;
+      }
+
+      .btn-submit {
+        width: 100%;
+        padding: 13px;
+        background: var(--azul);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-family: inherit;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s;
+        margin-top: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+
+      .btn-submit:hover {
+        background: var(--azul2);
+      }
+      .btn-submit:disabled {
+        background: var(--sub);
+        cursor: not-allowed;
+        opacity: 0.6;
+      }
+
+      /* ── TOAST ────────────────────────────────────────────────── */
+      #toast {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        padding: 14px 20px;
+        border-radius: 12px;
+        font-size: 14px;
+        font-weight: 600;
+        color: white;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+        transform: translateY(80px);
+        opacity: 0;
+        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        z-index: 999;
+        max-width: 320px;
+      }
+
+      #toast.show {
+        transform: translateY(0);
+        opacity: 1;
+      }
+      #toast.ok {
+        background: var(--ok);
+      }
+      #toast.err {
+        background: var(--rojo);
+      }
+
+      /* ── TABLA PARTIDOS ───────────────────────────────────────── */
+      .toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 16px;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .search-box {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--bg);
+        border: 1.5px solid var(--border);
+        border-radius: 10px;
+        padding: 8px 14px;
+        flex: 1;
+        max-width: 260px;
+      }
+
+      .search-box input {
+        border: none;
+        background: none;
+        font-family: inherit;
+        font-size: 14px;
+        color: var(--texto);
+        outline: none;
+        width: 100%;
+      }
+
+      .count-badge {
+        background: var(--azul);
+        color: white;
+        font-size: 11px;
+        font-weight: 700;
+        padding: 4px 10px;
+        border-radius: 20px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      thead tr {
+        background: var(--bg);
+      }
+
+      th {
+        padding: 10px 14px;
+        text-align: left;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--sub);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        border-bottom: 1px solid var(--border);
+      }
+
+      td {
+        padding: 14px;
+        font-size: 14px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: middle;
+      }
+
+      tr:last-child td {
+        border-bottom: none;
+      }
+      tr:hover td {
+        background: rgba(13, 46, 110, 0.02);
+      }
+
+      .partido-logo {
+        width: 48px;
+        height: 48px;
+        border-radius: 10px;
+        object-fit: cover;
+        border: 1px solid var(--border);
+        background: var(--bg);
+      }
+
+      .siglas-chip {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 6px;
+        background: rgba(13, 46, 110, 0.08);
+        color: var(--azul);
+        font-family: "DM Mono", monospace;
+        font-size: 12px;
+        font-weight: 500;
+      }
+
+      .btn-del {
+        background: none;
+        border: 1.5px solid var(--border);
+        border-radius: 8px;
+        padding: 6px 12px;
+        font-family: inherit;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--rojo);
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .btn-del:hover {
+        background: var(--rojo);
+        color: white;
+        border-color: var(--rojo);
+      }
+
+      .empty-state {
+        padding: 48px 24px;
+        text-align: center;
+        color: var(--sub);
+      }
+
+      .empty-state .big {
+        font-size: 40px;
+        margin-bottom: 12px;
+      }
+      .empty-state p {
+        font-size: 14px;
+      }
+
+      /* ── STATS ────────────────────────────────────────────────── */
+      .stats-row {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+
+      @media (max-width: 600px) {
+        .stats-row {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      .stat-card {
+        background: var(--card);
+        border-radius: var(--radius);
+        padding: 20px;
+        box-shadow: 0 2px 8px rgba(13, 46, 110, 0.07);
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+
+      .stat-icon {
+        font-size: 28px;
+      }
+
+      .stat-card h4 {
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--texto);
+      }
+      .stat-card p {
+        font-size: 12px;
+        color: var(--sub);
+      }
+
+      .spinner {
+        display: inline-block;
+        width: 16px;
+        height: 16px;
+        border: 2px solid rgba(255, 255, 255, 0.4);
+        border-top-color: white;
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!--  LOGIN                                                      -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <div id="login-screen">
+      <div class="login-card">
+        <div class="escudo">🗳️</div>
+        <h1>Panel Electoral</h1>
+        <p>Acceso restringido · Solo personal autorizado</p>
+
+        <div class="field">
+          <label>Usuario</label>
+          <input type="text" id="usr" placeholder="admin" autocomplete="off" />
+        </div>
+        <div class="field">
+          <label>Contraseña</label>
+          <input
+            type="password"
+            id="pwd"
+            placeholder="••••••••"
+            onkeydown="if(event.key==='Enter')doLogin()"
+          />
+        </div>
+        <button class="btn-primary" onclick="doLogin()">
+          Ingresar al Sistema
+        </button>
+        <p id="login-error">Credenciales incorrectas.</p>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!--  DASHBOARD                                                  -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <div id="dashboard">
+      <header>
+        <div class="brand">
+          <span>🗳️</span>
+          <div>
+            <h2>Panel Electoral</h2>
+            <p>Sistema de Votación Electrónica</p>
+          </div>
+        </div>
+        <span class="badge-admin">ADMINISTRADOR</span>
+      </header>
+
+      <main>
+        <!-- Stats -->
+        <div class="stats-row">
+          <div class="stat-card">
+            <div class="stat-icon">🏛️</div>
+            <div>
+              <h4 id="stat-partidos">—</h4>
+              <p>Partidos registrados</p>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">🗳️</div>
+            <div>
+              <h4 id="stat-votos">—</h4>
+              <p>Votos emitidos</p>
+            </div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon">👤</div>
+            <div>
+              <h4 id="stat-votantes">—</h4>
+              <p>Votantes registrados</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <!-- ── FORMULARIO NUEVO PARTIDO ── -->
+          <div class="card">
+            <div class="card-header">
+              <div class="icon icon-blue">➕</div>
+              <div>
+                <h3>Registrar Partido</h3>
+                <p>Complete todos los campos</p>
+              </div>
+            </div>
+            <div class="card-body">
+              <div class="form-row">
+                <label>Nombre completo</label>
+                <input
+                  type="text"
+                  id="nombre"
+                  placeholder="ej. Partido Democrático Nacional"
+                />
+              </div>
+              <div class="form-row">
+                <label>Siglas</label>
+                <input
+                  type="text"
+                  id="siglas"
+                  placeholder="ej. PDN"
+                  maxlength="6"
+                />
+              </div>
+              <div class="form-row">
+                <label>Logo del partido</label>
+                <div class="upload-zone" id="drop-zone">
+                  <input
+                    type="file"
+                    id="foto-input"
+                    accept="image/*"
+                    onchange="onFileChange(this)"
+                  />
+                  <div class="icon-up">🖼️</div>
+                  <p><strong>Haz clic o arrastra</strong> una imagen aquí</p>
+                  <p>PNG, JPG o WEBP · máx. 5 MB</p>
+                  <img id="preview-img" alt="Preview" />
+                </div>
+              </div>
+              <button
+                class="btn-submit"
+                id="btn-crear"
+                onclick="crearPartido()"
+              >
+                <span>Registrar partido</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- ── LISTA DE PARTIDOS ── -->
+          <div class="card">
+            <div class="card-header">
+              <div class="icon icon-red">🏛️</div>
+              <div>
+                <h3>Partidos registrados</h3>
+                <p>Gestiona los candidatos</p>
+              </div>
+            </div>
+            <div class="card-body" style="padding: 16px 24px">
+              <div class="toolbar">
+                <div class="search-box">
+                  <span>🔍</span>
+                  <input
+                    type="text"
+                    placeholder="Buscar partido…"
+                    oninput="filtrarTabla(this.value)"
+                  />
+                </div>
+                <span class="count-badge" id="count-badge">0</span>
+              </div>
+              <div style="overflow-x: auto">
+                <table id="tabla-partidos">
+                  <thead>
+                    <tr>
+                      <th>Logo</th>
+                      <th>Nombre</th>
+                      <th>Siglas</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="tbody"></tbody>
+                </table>
+              </div>
+              <div id="empty-state" class="empty-state" style="display: none">
+                <div class="big">🏛️</div>
+                <p>No hay partidos registrados aún.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <div id="toast"></div>
+
+    <script>
+      // ── CONFIGURACIÓN ──────────────────────────────────────────
+      const BASE_URL = "http://192.168.1.36:8000";
+      const ADMIN_USR = "admin"; // cambia esto
+      const ADMIN_PWD = "onpe2024"; // cambia esto
+
+      let partidosData = [];
+      let fotoBase64 = null;
+
+      // ── LOGIN ──────────────────────────────────────────────────
+      function doLogin() {
+        const u = document.getElementById("usr").value.trim();
+        const p = document.getElementById("pwd").value;
+        if (u === ADMIN_USR && p === ADMIN_PWD) {
+          document.getElementById("login-screen").style.display = "none";
+          document.getElementById("dashboard").style.display = "block";
+          cargarDashboard();
+        } else {
+          document.getElementById("login-error").style.display = "block";
+        }
+      }
+
+      // ── TOAST ──────────────────────────────────────────────────
+      function toast(msg, tipo = "ok") {
+        const t = document.getElementById("toast");
+        t.textContent = msg;
+        t.className = `show ${tipo}`;
+        setTimeout(() => {
+          t.className = "";
+        }, 3500);
+      }
+
+      // ── PREVIEW DE IMAGEN ──────────────────────────────────────
+      function onFileChange(input) {
+        const file = input.files[0];
+        if (!file) return;
+        if (file.size > 5 * 1024 * 1024) {
+          toast("La imagen supera los 5 MB.", "err");
+          return;
+        }
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          fotoBase64 = e.target.result.split(",")[1]; // solo el base64 puro
+          const img = document.getElementById("preview-img");
+          img.src = e.target.result;
+          img.style.display = "block";
+        };
+        reader.readAsDataURL(file);
+      }
+
+      // Drag & drop
+      const dz = document.getElementById("drop-zone");
+      dz.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dz.classList.add("drag");
+      });
+      dz.addEventListener("dragleave", () => dz.classList.remove("drag"));
+      dz.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dz.classList.remove("drag");
+        const file = e.dataTransfer.files[0];
+        if (file) {
+          document.getElementById("foto-input").files = e.dataTransfer.files;
+          onFileChange({ files: [file] });
+        }
+      });
+
+      // ── CREAR PARTIDO ──────────────────────────────────────────
+      async function crearPartido() {
+        const nombre = document.getElementById("nombre").value.trim();
+        const siglas = document
+          .getElementById("siglas")
+          .value.trim()
+          .toUpperCase();
+
+        if (!nombre) {
+          toast("Ingresa el nombre del partido.", "err");
+          return;
+        }
+        if (!siglas) {
+          toast("Ingresa las siglas.", "err");
+          return;
+        }
+        if (!fotoBase64) {
+          toast("Selecciona una imagen.", "err");
+          return;
+        }
+
+        const btn = document.getElementById("btn-crear");
+        btn.disabled = true;
+        btn.innerHTML =
+          '<span class="spinner"></span><span>Registrando…</span>';
+
+        try {
+          const res = await fetch(`${BASE_URL}/admin/partidos`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ nombre, siglas, foto_base64: fotoBase64 }),
+          });
+
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.detail || "Error del servidor");
+
+          toast(`✅ ${siglas} registrado con éxito`);
+          // Reset form
+          document.getElementById("nombre").value = "";
+          document.getElementById("siglas").value = "";
+          document.getElementById("foto-input").value = "";
+          document.getElementById("preview-img").style.display = "none";
+          fotoBase64 = null;
+          cargarDashboard();
+        } catch (e) {
+          toast("❌ " + e.message, "err");
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = "<span>Registrar partido</span>";
+        }
+      }
+
+      // ── ELIMINAR PARTIDO ───────────────────────────────────────
+      async function eliminarPartido(id, nombre) {
+        if (
+          !confirm(`¿Eliminar "${nombre}"? Esta acción no se puede deshacer.`)
+        )
+          return;
+        try {
+          const res = await fetch(`${BASE_URL}/admin/partidos/${id}`, {
+            method: "DELETE",
+          });
+          if (!res.ok) throw new Error("No se pudo eliminar");
+          toast(`🗑️ Partido eliminado`);
+          cargarDashboard();
+        } catch (e) {
+          toast("❌ " + e.message, "err");
+        }
+      }
+
+      // ── CARGAR DASHBOARD ───────────────────────────────────────
+      async function cargarDashboard() {
+        try {
+          // Partidos
+          const r1 = await fetch(`${BASE_URL}/partidos`);
+          partidosData = await r1.json();
+          renderTabla(partidosData);
+          document.getElementById("stat-partidos").textContent =
+            partidosData.length;
+
+          // Stats extra (resultados)
+          const r2 = await fetch(`${BASE_URL}/admin/results`);
+          const data2 = await r2.json();
+          const totalVotos = data2.resultados.reduce((s, p) => s + p.votos, 0);
+          document.getElementById("stat-votos").textContent = totalVotos;
+        } catch (e) {
+          console.error(e);
+        }
+
+        // Votantes (endpoint simple)
+        try {
+          const r3 = await fetch(`${BASE_URL}/admin/votantes`);
+          const d3 = await r3.json();
+          document.getElementById("stat-votantes").textContent =
+            d3.total ?? "—";
+        } catch (_) {
+          document.getElementById("stat-votantes").textContent = "—";
+        }
+      }
+
+      // ── RENDER TABLA ───────────────────────────────────────────
+      function renderTabla(data) {
+        const tbody = document.getElementById("tbody");
+        const empty = document.getElementById("empty-state");
+        const badge = document.getElementById("count-badge");
+
+        badge.textContent = data.length;
+
+        if (data.length === 0) {
+          tbody.innerHTML = "";
+          empty.style.display = "block";
+          return;
+        }
+
+        empty.style.display = "none";
+        tbody.innerHTML = data
+          .map(
+            (p) => `
+      <tr>
+        <td>
+          <img class="partido-logo"
+               src="${BASE_URL}${p.foto_url}"
+               onerror="this.style.display='none'"
+               alt="${p.siglas}">
+        </td>
+        <td>${p.nombre}</td>
+        <td><span class="siglas-chip">${p.siglas}</span></td>
+        <td>
+          <button class="btn-del" onclick="eliminarPartido(${p.id}, '${p.nombre}')">
+            Eliminar
+          </button>
+        </td>
+      </tr>
+    `
+          )
+          .join("");
+      }
+
+      // ── FILTRO DE BÚSQUEDA ─────────────────────────────────────
+      function filtrarTabla(q) {
+        const filtrado = partidosData.filter(
+          (p) =>
+            p.nombre.toLowerCase().includes(q.toLowerCase()) ||
+            p.siglas.toLowerCase().includes(q.toLowerCase())
+        );
+        renderTabla(filtrado);
+      }
+    </script>
+  </body>
+</html>

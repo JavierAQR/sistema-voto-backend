@@ -10,6 +10,7 @@ import base64
 import cv2
 import numpy as np
 from deepface import DeepFace
+from fastapi.responses import FileResponse
 
 # Creamos las tablas en la base de datos
 Base.metadata.create_all(bind=engine)
@@ -69,35 +70,72 @@ class PartidoCreate(BaseModel):
 @app.post("/admin/partidos")
 def crear_partido(request: PartidoCreate, db: Session = Depends(get_db)):
     try:
-        # Decodificamos la imagen enviada desde la galería del Admin
         image_data = base64.b64decode(request.foto_base64)
         nparr = np.frombuffer(image_data, np.uint8)
-        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        
-        # Guardamos la imagen físicamente
+        img   = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
         nombre_archivo = f"{request.siglas.lower()}.jpg"
-        ruta_guardado = os.path.join(PARTIDOS_DIR, nombre_archivo)
+        ruta_guardado  = os.path.join(PARTIDOS_DIR, nombre_archivo)
         cv2.imwrite(ruta_guardado, img)
-        
         foto_url = f"/static_partidos/{nombre_archivo}"
-        
-        # Guardamos en base de datos (asegúrate de tener este modelo en models.py)
-        nuevo_partido = models.PartidoPolitico(
-            nombre=request.nombre, 
-            siglas=request.siglas, 
-            foto_url=foto_url
+        # ─────────────────────────────────────────────────────────────────────
+ 
+        # Evitar duplicados por siglas
+        existente = db.query(models.PartidoPolitico).filter(
+            models.PartidoPolitico.siglas == request.siglas
+        ).first()
+        if existente:
+            raise HTTPException(status_code=400, detail=f"Las siglas '{request.siglas}' ya están registradas.")
+ 
+        nuevo = models.PartidoPolitico(
+            nombre   = request.nombre,
+            siglas   = request.siglas,
+            foto_url = foto_url
         )
-        db.add(nuevo_partido)
+        db.add(nuevo)
         db.commit()
         return {"mensaje": "Partido registrado con éxito"}
+ 
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error guardando partido: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+    
+@app.delete("/admin/partidos/{partido_id}")
+def eliminar_partido(partido_id: int, db: Session = Depends(get_db)):
+    partido = db.query(models.PartidoPolitico).filter(
+        models.PartidoPolitico.id == partido_id
+    ).first()
+    if not partido:
+        raise HTTPException(status_code=404, detail="Partido no encontrado.")
+ 
+    # Eliminar archivo local si existe
+    if partido.foto_url.startswith("/static_partidos/"):
+        nombre_archivo = partido.foto_url.replace("/static_partidos/", "")
+        ruta = os.path.join(PARTIDOS_DIR, nombre_archivo)
+        if os.path.exists(ruta):
+            os.remove(ruta)
+ 
+    db.delete(partido)
+    db.commit()
+    return {"mensaje": "Partido eliminado."}
 
 @app.get("/partidos")
 def listar_partidos(db: Session = Depends(get_db)):
     partidos = db.query(models.PartidoPolitico).all()
     # Devolvemos la lista para que el Votante la vea en su pantalla
     return [{"id": p.id, "nombre": p.nombre, "siglas": p.siglas, "foto_url": p.foto_url} for p in partidos]
+
+@app.get("/admin/votantes")
+def total_votantes(db: Session = Depends(get_db)):
+    total = db.query(func.count(models.Votante.id)).scalar()
+    return {"total": total}
+
+
+ 
+@app.get("/admin")
+def panel_admin():
+    return FileResponse("admin_panel.html")
+
 
 # --- Endpoints ---
 
